@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { MessageCircleQuestionIcon, SendHorizonalIcon } from "lucide-react";
 import { parseFile } from "@/app/api/parse/route";
+import { fetchHandler } from "@/lib/handlers/fetch";
 
 interface InputProps {
     onResult: (text: string) => void;
@@ -49,42 +50,45 @@ export default function SummarizerInput({ onResult }: InputProps) {
   }, [prompt]);
 
   const handleSubmit = async () => {
-    console.log("🚀 Kirim ditekan!");
-  
-    if (!file) {
-      console.warn("⚠️ File belum dipilih!");
+  if (!file) {
+    console.warn("⚠️ File belum dipilih.");
+    return;
+  }
+
+  const type = file.name.endsWith(".pdf") ? "pdf" : "docx";
+
+  try {
+    console.log("📤 Mulai proses parsing...");
+    const parsedText = await parseFile(file, type);
+
+    if (!parsedText || parsedText.trim() === "") {
+      console.warn("⚠️ Parsing gagal atau hasil kosong.");
       return;
     }
-  
-    const type = file.name.endsWith(".pdf") ? "pdf" : "docx";
-  
-    // Log file info
-    console.log("📄 Selected File:", {
-      name: file.name,
-      type: file.type,
-      size: file.size,
+
+    console.log("📄 Hasil Parsing:", parsedText.slice(0, 300)); // Preview 300 karakter pertama
+
+    console.log("🤖 Mengirim ke API AI untuk dirangkum...");
+    const aiSummary = await fetchHandler<{ data: string }>("/api/ai", {
+      method: "POST",
+      body: JSON.stringify({ content: parsedText, language: "id" }),
+      headers: { "Content-Type": "application/json" },
     });
-  
-    // Prepare FormData and log entries
-    const formData = new FormData();
-    formData.append("file", file);
-  
-    for (const [key, value] of formData.entries()) {
-      console.log(`📦 FormData Entry - ${key}:`, value);
-    }
-  
-    // Call API via parseFile
-    const text = await parseFile(file, type);
-  
-    console.log("📚 API Result:", text);
-  
-    if (text) {
-      console.log("✅ Parsing berhasil, hasil dikirim ke parent.");
-      onResult(text);
+
+    if (aiSummary.success && aiSummary.data) {
+      console.log("📚 Hasil Ringkasan AI:", aiSummary.data);
+      onResult(aiSummary.data); // ✅ Langsung tampilkan hasil AI
     } else {
-      console.warn("❌ Failed to parse file.");
+      console.warn("❌ Gagal mendapatkan ringkasan AI.", aiSummary.error);
+      onResult("Gagal mendapatkan ringkasan dari AI.");
     }
-  };
+  } catch (error) {
+    console.error("🔥 Error saat handleSubmit:", error);
+    onResult("Terjadi kesalahan saat memproses ringkasan.");
+  }
+};
+
+
   
   
 

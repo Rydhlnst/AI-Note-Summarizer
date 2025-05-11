@@ -40,7 +40,7 @@ export async function fetchHandler<T>(
     ...restOptions,
     headers,
     signal: controller.signal,
-    body: body instanceof FormData ? body : JSON.stringify(body),
+    body: processedBody
   };
 
   try {
